@@ -85,7 +85,7 @@ public class GenericClient implements Runnable {
 			}
 		}catch(Exception e){
 			if(this.callbackMachine != null){
-				this.callbackMachine.serverConnectionDied(messagesSent, messagesReceived);
+				this.callbackMachine.serverConnectionDied(messagesSent, ++messagesReceived);
 			}
 		}
 	}
