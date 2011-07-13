@@ -1,0 +1,10 @@
+ShaneKBot Version 0.0.1
+
+ShaneKBot is an IRC bot that was created for a competition on DreamInCode, but more as a reason to use my generic client class.
+
+ShaneKBot currently:
+*Joins IRC servers and channels
+*Plays tic-tac-toe.
+**Either in PM or public channel, with or without delay - to prevent flooding in public, but allow it in pm
+*Greets people that greet it
+*Quits on owner (my) command
