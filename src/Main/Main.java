@@ -1,5 +1,11 @@
 package Main;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.util.ArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -9,21 +15,32 @@ import Main.TicTacToe.GameState;
 import Misc.Message;
 
 public class Main implements ServerCallbackClass {
+	//A handle on the client
 	public static GenericClient client = null;
-	public static final String botID = "ShaneKBot";
-	public static final String myID = "ShaneK";
-	public static final String realName = "Bender Bending Rodriguez";
+	
+	//My bot's information
+	public static final String botID = "ShaneKBot"; //Display name
+	public static final String myID = "ShaneK"; //My name
+	public static final String realName = "Bender Bending Rodriguez"; //Bot's "real name"
+	
+	//Host and (main)Channel
 	public static final String host = "irc.choopa.net";
 	public static final String mainChannel = "#dreamincode";
-	//public static String host = "matyas.dyndns-server.com";
-	//public static final String mainChannel = "#BotTesting";
 	public static String channel = mainChannel;
+
+	
+	//Related to knots and crosses
 	private TicTacToe game = null;
 	private String players[] = new String[2];
 	private boolean playingGame = false;
 	private boolean playingInPrivate = true;
 	private int boardSize = 3;
 	private int gameDelay = 2000;
+	
+	//Related to the future of my bot
+	private static final String future_path = "future.info";
+	private ArrayList<String> future = null;
+	private boolean future_has_been_loaded = false;
 	
 	/**
 	 * @param args
@@ -84,7 +101,7 @@ public class Main implements ServerCallbackClass {
 			if(msg.contains("quit")){
 				//Quitting
 				quit(m);
-			}else if(msg.contains("hello") || msg.contains("hi") || msg.contains("hey")){
+			}else if(msg.contains("hello")){
 				//Greeting who greeted me
 				command_greetings(m);
 			}else if(msg.contains("message me instead")){
@@ -109,14 +126,63 @@ public class Main implements ServerCallbackClass {
 				//Test the game
 				command_test(m, msg);
 			}else if(msg.contains("future")){
-				//Future plans for ShaneKBot
-				command_display_future(m, msg);
+				if(msg.contains(": add future")){
+					//Add something to the future plans
+					//Syntax: add future <x>
+					command_add_future(m, msg);
+				}else if(msg.contains(": remove future")){
+					//Remove something from the future plans
+					//Syntax: remove future <line#>
+					command_remove_future(m, msg);
+				}else{
+					//Display future plans for ShaneKBot
+					command_display_future(m, msg);
+				}
 			}
 		}else if(m.getToChan().trim().toLowerCase().equals(botID.trim().toLowerCase())){
 			private_message_relay(m, msg);
 		}
 	}
 	
+	private void command_remove_future(Message m, String msg) {
+		if(!m.getFrom().equals("ShaneK")) return;
+		try {
+			Pattern regex = Pattern.compile(": (?:add|remove) future (\\d*)", Pattern.DOTALL | Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.MULTILINE);
+			Matcher regexMatcher = regex.matcher(msg);
+			int future_to_remove = -1;
+			if (regexMatcher.find()) {
+				future_to_remove = Integer.parseInt(regexMatcher.group(1));
+				if(!future_has_been_loaded)
+					load_future();
+				if(!(future_to_remove > -1 && future_to_remove < future.size())) return;
+				String removed = future.remove(future_to_remove);
+				save_future();
+				sendMessage(mainChannel, "Removed future on \"line\" "+future_to_remove+". ("+removed+")", 2000);
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+	}
+
+	private void command_add_future(Message m, String msg) {
+		if(!m.getFrom().equals("ShaneK")) return;
+		try {
+			Pattern regex = Pattern.compile(": (?:add|remove) future (.*)", Pattern.DOTALL | Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.MULTILINE);
+			Matcher regexMatcher = regex.matcher(msg);
+			String future_string = null;
+			if (regexMatcher.find()) {
+				future_string = regexMatcher.group(1);
+				if(!future_has_been_loaded)
+					load_future();
+				future.add(future_string);
+				save_future();
+				sendMessage(mainChannel, "New future goal added successfully.");
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+	}
+
 	private void private_message_relay(Message m, String msg) {
 		if(this.playingGame && this.playingInPrivate){
 			String target = players[0];
@@ -128,25 +194,56 @@ public class Main implements ServerCallbackClass {
 	}
 
 	private void command_display_future(Message m, String msg) {
-		String[] ms = {
-				"Things ShaneK needs to do to me:",
-				"Fix Tic-Tac-Toe algorithm;",
-				"Make me better documented;",
-				"Figure out how to make my code not be ugly;",
-				"Make me have AI so I can talk back;",
-				"Give me better games than 'Tic-Tac-Toe'",
-		};
-		String output = "";
-		for(int i = 0; i < ms.length; i++){
-			output += ms[i]+" ";
+		if(!future_has_been_loaded){
+			load_future();
+		}
+		int length = future.size();
+		String output = "Things ShaneK needs to do to me: ";
+		if(length == 0){
+			sendMessage(mainChannel, output+"Nothing, apparently. (ArrayList empty!)");
+			return;
+		}
+		for(int i = 0; i < length; i++){
+			output += future.get(i)+"; ";
 			if(output.length() >= 256){
 				sendMessage(mainChannel, output, 2000);
 				output = "";
 			}
-			ms[i] = null;
 		}
 		sendMessage(mainChannel, output, 2000);
-		ms = null;
+	}
+
+	private void load_future() {
+		try {
+			File f = new File(future_path);
+			f.createNewFile(); //Only happens if it doesn't exist already
+			BufferedReader reader = new BufferedReader(new FileReader(f));
+			String line;
+			future = new ArrayList<String>();
+			while((line = reader.readLine()) != null){
+				future.add(line);
+			}
+			reader.close();
+			line = null;
+			future_has_been_loaded = true;
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	private void save_future(){
+		try {
+			BufferedWriter writer = new BufferedWriter(new FileWriter(new File(future_path)));
+			String output = "";
+			for(String line:future){
+				output += line+"\n";
+			}
+			writer.write(output);
+			writer.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
 	}
 
 	private void command_test(Message m, String msg) {
